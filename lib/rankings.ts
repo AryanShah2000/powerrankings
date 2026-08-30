@@ -61,6 +61,20 @@ export async function loadAllAverages(): Promise<{
   return { weeks, teams, analystCount, averages };
 }
 
+/**
+ * Weeks this analyst has submitted their own rankings for — results for any
+ * other week stay hidden from them until they do, so nobody's picks are
+ * biased by seeing the rest of the committee first.
+ */
+export async function getUnlockedWeekIds(analystId: string): Promise<Set<string>> {
+  const rows = await prisma.ranking.findMany({
+    where: { analystId },
+    select: { weekId: true },
+    distinct: ["weekId"],
+  });
+  return new Set(rows.map((r) => r.weekId));
+}
+
 export function currentWeekFor(weeks: WeekRow[], averages: WeekAverage[]): WeekRow | null {
   if (weeks.length === 0) return null;
   const withData = new Set(

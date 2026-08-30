@@ -1,7 +1,9 @@
 import Link from "next/link";
-import { loadAllAverages, currentWeekFor } from "@/lib/rankings";
+import { auth } from "@/auth";
+import { loadAllAverages, currentWeekFor, getUnlockedWeekIds } from "@/lib/rankings";
 import { Sparkline } from "@/components/sparkline";
 import { MovementBadge } from "@/components/movement-badge";
+import { WeekLocked } from "@/components/week-locked";
 
 export default async function HomePage({
   searchParams,
@@ -27,13 +29,19 @@ export default async function HomePage({
     );
   }
 
+  const session = await auth();
+  const analystId = session!.user!.id!;
+  const unlockedWeekIds = await getUnlockedWeekIds(analystId);
+
   const params = await searchParams;
   const fallbackWeek = currentWeekFor(weeks, averages);
   const selectedWeek = weeks.find((w) => w.id === params.week) ?? fallbackWeek ?? weeks[0];
+  const isUnlocked = unlockedWeekIds.has(selectedWeek.id);
 
-  // teamId -> weekOrder -> avgRank, for sparklines
+  // teamId -> weekOrder -> avgRank, for sparklines (locked weeks stay hidden)
   const historyByTeam = new Map<string, Map<number, number | null>>();
   for (const a of averages) {
+    if (!unlockedWeekIds.has(a.weekId)) continue;
     const m = historyByTeam.get(a.teamId) ?? new Map();
     m.set(a.weekOrder, a.avgRank);
     historyByTeam.set(a.teamId, m);
@@ -47,9 +55,10 @@ export default async function HomePage({
   const rows = teams
     .map((team) => {
       const current = averages.find((a) => a.teamId === team.id && a.weekId === selectedWeek.id);
-      const previous = previousWeek
-        ? averages.find((a) => a.teamId === team.id && a.weekId === previousWeek.id)
-        : undefined;
+      const previous =
+        previousWeek && unlockedWeekIds.has(previousWeek.id)
+          ? averages.find((a) => a.teamId === team.id && a.weekId === previousWeek.id)
+          : undefined;
 
       const history = historyByTeam.get(team.id) ?? new Map();
       const sparkValues = weeksUpToSelected.map((w) => history.get(w.order) ?? null);
@@ -85,18 +94,21 @@ export default async function HomePage({
           <Link
             key={w.id}
             href={`/?week=${w.id}`}
-            className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+            className={`inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
               w.id === selectedWeek.id
                 ? "bg-accent text-white"
                 : "bg-bg-surface-2 text-text-secondary hover:bg-bg-surface-hover"
             }`}
           >
+            {!unlockedWeekIds.has(w.id) && <span className="text-[10px]">🔒</span>}
             {w.label}
           </Link>
         ))}
       </div>
 
-      {rows.every((r) => r.current?.avgRank == null) ? (
+      {!isUnlocked ? (
+        <WeekLocked weekId={selectedWeek.id} weekLabel={selectedWeek.label} />
+      ) : rows.every((r) => r.current?.avgRank == null) ? (
         <div className="rounded-2xl border border-dashed border-border-hairline p-8 text-center text-sm text-text-secondary">
           No rankings submitted for {selectedWeek.label} yet.{" "}
           <Link href={`/rankings?week=${selectedWeek.id}`} className="text-accent-strong hover:underline">
