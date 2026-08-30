@@ -1,8 +1,13 @@
 import Link from "next/link";
 import { loadAllAverages, currentWeekFor } from "@/lib/rankings";
 import { prisma } from "@/lib/prisma";
+import { MovementBadge } from "@/components/movement-badge";
 
-export default async function BoardPage() {
+export default async function BoardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ week?: string }>;
+}) {
   const { weeks, teams, averages } = await loadAllAverages();
 
   if (teams.length === 0) {
@@ -16,18 +21,45 @@ export default async function BoardPage() {
     );
   }
 
-  const analysts = await prisma.analyst.findMany({ select: { id: true, name: true } });
+  const analysts = await prisma.analyst.findMany({
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
   const analystNameById = new Map(analysts.map((a) => [a.id, a.name]));
 
   const byTeamWeek = new Map<string, (typeof averages)[number]>();
   for (const a of averages) byTeamWeek.set(`${a.teamId}::${a.weekId}`, a);
 
-  const latestWeek = currentWeekFor(weeks, averages);
+  const params = await searchParams;
+  const fallbackWeek = currentWeekFor(weeks, averages);
+  const selectedWeek = weeks.find((w) => w.id === params.week) ?? fallbackWeek ?? weeks[0];
+  const previousWeek = weeks
+    .filter((w) => w.order < selectedWeek.order)
+    .sort((a, b) => b.order - a.order)[0];
+
   const teamCount = teams.length;
 
-  const rows = teams
+  const snapshotRows = teams
     .map((team) => {
-      const latest = latestWeek ? byTeamWeek.get(`${team.id}::${latestWeek.id}`) : undefined;
+      const current = byTeamWeek.get(`${team.id}::${selectedWeek.id}`);
+      const previous = previousWeek ? byTeamWeek.get(`${team.id}::${previousWeek.id}`) : undefined;
+      const delta =
+        current?.avgRank != null && previous?.avgRank != null
+          ? previous.avgRank - current.avgRank
+          : null;
+      const isNew = current?.avgRank != null && previous?.avgRank == null;
+      return { team, current, delta, isNew };
+    })
+    .sort((a, b) => {
+      if (a.current?.avgRank == null && b.current?.avgRank == null) return 0;
+      if (a.current?.avgRank == null) return 1;
+      if (b.current?.avgRank == null) return -1;
+      return a.current.avgRank - b.current.avgRank;
+    });
+
+  const seasonRows = teams
+    .map((team) => {
+      const latest = fallbackWeek ? byTeamWeek.get(`${team.id}::${fallbackWeek.id}`) : undefined;
       return { team, sortKey: latest?.avgRank ?? Number.POSITIVE_INFINITY };
     })
     .sort((a, b) => a.sortKey - b.sortKey);
@@ -44,10 +76,91 @@ export default async function BoardPage() {
       <div className="mb-6">
         <h1 className="text-xl font-semibold tracking-tight">Full Board</h1>
         <p className="mt-1 text-sm text-text-secondary">
-          Average rank by team and week — darker means a better (lower) average rank. Hover a cell for the analyst breakdown.
+          A single week to screenshot and share, plus the full-season matrix below.
         </p>
       </div>
 
+      <div className="mb-6 flex flex-wrap gap-1.5">
+        {weeks.map((w) => (
+          <Link
+            key={w.id}
+            href={`/board?week=${w.id}`}
+            className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+              w.id === selectedWeek.id
+                ? "bg-accent text-white"
+                : "bg-bg-surface-2 text-text-secondary hover:bg-bg-surface-hover"
+            }`}
+          >
+            {w.label}
+          </Link>
+        ))}
+      </div>
+
+      <div className="mb-10 overflow-x-auto rounded-2xl border border-border-hairline bg-bg-surface">
+        <table className="w-full border-collapse text-sm">
+          <caption className="border-b border-border-hairline px-4 py-3 text-left text-base font-semibold text-text-primary">
+            {selectedWeek.label} Power Rankings
+          </caption>
+          <thead>
+            <tr>
+              <th className="border-b border-border-hairline px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted">
+                Team
+              </th>
+              <th className="border-b border-border-hairline px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wide text-text-muted">
+                Avg Rank
+              </th>
+              {analysts.map((a) => (
+                <th
+                  key={a.id}
+                  className="border-b border-l border-border-hairline px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wide text-text-muted"
+                >
+                  {a.name}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {snapshotRows.map(({ team, current, delta, isNew }, index) => (
+              <tr key={team.id}>
+                <td className="border-b border-border-hairline px-3 py-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="w-4 text-right text-xs font-semibold tabular-nums text-text-muted">
+                      {index + 1}
+                    </span>
+                    <span
+                      className="h-6 w-6 shrink-0 rounded-full text-center text-[10px] font-semibold leading-6 text-white"
+                      style={{ backgroundColor: team.color }}
+                    >
+                      {team.shortName.slice(0, 2)}
+                    </span>
+                    <span className="font-medium text-text-primary">{team.name}</span>
+                  </div>
+                </td>
+                <td className="border-b border-border-hairline px-3 py-2.5">
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="tabular-nums font-semibold text-text-primary">
+                      {current?.avgRank != null ? current.avgRank.toFixed(1) : "–"}
+                    </span>
+                    <MovementBadge delta={delta} isNew={isNew} />
+                  </div>
+                </td>
+                {analysts.map((a) => (
+                  <td
+                    key={a.id}
+                    className="border-b border-l border-border-hairline px-3 py-2.5 text-center tabular-nums text-text-secondary"
+                  >
+                    {current?.byAnalyst[a.id] ?? <span className="text-text-muted">–</span>}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-text-muted">
+        Full season
+      </h2>
       <div className="overflow-x-auto rounded-2xl border border-border-hairline">
         <table className="w-full border-collapse text-sm">
           <thead>
@@ -66,7 +179,7 @@ export default async function BoardPage() {
             </tr>
           </thead>
           <tbody>
-            {rows.map(({ team }) => (
+            {seasonRows.map(({ team }) => (
               <tr key={team.id} className="group">
                 <td className="sticky left-0 z-10 border-b border-border-hairline bg-bg-page px-3 py-2 group-hover:bg-bg-surface-2">
                   <div className="flex items-center gap-2">
