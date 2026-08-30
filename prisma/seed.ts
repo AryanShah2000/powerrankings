@@ -1,54 +1,10 @@
 import { PrismaClient } from "@prisma/client";
-import bcrypt from "bcryptjs";
+import { seedDatabase } from "../lib/seed";
 
 const prisma = new PrismaClient();
 
-const WEEKS = ["Pre-Draft", ...Array.from({ length: 17 }, (_, i) => `Week ${i + 1}`)];
-
-const ANALYSTS = [
-  { username: "aryan", name: "Aryan", envVar: "ANALYST_ARYAN_PASSWORD" },
-  { username: "dev", name: "Dev", envVar: "ANALYST_DEV_PASSWORD" },
-  { username: "manit", name: "Manit", envVar: "ANALYST_MANIT_PASSWORD" },
-];
-
-function randomPassword() {
-  return Math.random().toString(36).slice(2, 10);
-}
-
-async function main() {
-  for (const [order, label] of WEEKS.entries()) {
-    await prisma.week.upsert({
-      where: { label },
-      update: { order },
-      create: { label, order },
-    });
-  }
-  console.log(`Seeded ${WEEKS.length} weeks (Pre-Draft → Week 17).`);
-
-  for (const a of ANALYSTS) {
-    const existing = await prisma.analyst.findUnique({ where: { username: a.username } });
-    if (existing) {
-      console.log(`Analyst "${a.name}" already exists, skipping.`);
-      continue;
-    }
-
-    const password = process.env[a.envVar] ?? randomPassword();
-    const passwordHash = await bcrypt.hash(password, 10);
-    await prisma.analyst.create({
-      data: { username: a.username, name: a.name, passwordHash },
-    });
-
-    if (process.env[a.envVar]) {
-      console.log(`Created analyst "${a.name}" with the password from ${a.envVar}.`);
-    } else {
-      console.log(
-        `Created analyst "${a.name}" with a GENERATED password: ${password}  (set ${a.envVar} before seeding to control this)`
-      );
-    }
-  }
-}
-
-main()
+seedDatabase(prisma)
+  .then((log) => log.forEach((line) => console.log(line)))
   .catch((e) => {
     console.error(e);
     process.exit(1);
