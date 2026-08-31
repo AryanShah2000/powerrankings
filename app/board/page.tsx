@@ -109,25 +109,29 @@ export default async function BoardPage({
           <WeekLocked weekId={selectedWeek.id} weekLabel={selectedWeek.label} />
         </div>
       ) : (
-        <div className="mb-10 overflow-x-auto rounded-2xl border border-border-hairline bg-bg-surface">
-          <table className="w-full border-collapse text-sm">
+        <div className="mb-10 inline-block overflow-x-auto rounded-2xl border border-border-hairline bg-bg-surface">
+          <table className="border-collapse text-sm">
             <caption className="border-b border-border-hairline px-4 py-3 text-left text-base font-semibold text-text-primary">
               {selectedWeek.label} Power Rankings
             </caption>
             <thead>
               <tr>
-                <th className="border-b border-border-hairline px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted">
+                <th className="border-b border-border-hairline px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-text-muted">
                   Team
                 </th>
-                <th className="border-b border-border-hairline px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wide text-text-muted">
-                  Avg Rank
+                <th className="border-b border-border-hairline px-2 py-2 text-center text-xs font-semibold uppercase tracking-wide text-text-muted">
+                  Avg
+                  <br />
+                  Rank
                 </th>
                 {analysts.map((a) => (
                   <th
                     key={a.id}
-                    className="border-b border-l border-border-hairline px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wide text-text-muted"
+                    className="border-b border-l border-border-hairline px-1.5 py-2 text-center text-xs font-semibold uppercase tracking-wide text-text-muted"
                   >
-                    {a.name}
+                    <span className="inline-block whitespace-nowrap [writing-mode:vertical-rl] rotate-180">
+                      {a.name}
+                    </span>
                   </th>
                 ))}
               </tr>
@@ -135,7 +139,7 @@ export default async function BoardPage({
             <tbody>
               {snapshotRows.map(({ team, current, delta, isNew }, index) => (
                 <tr key={team.id}>
-                  <td className="border-b border-border-hairline px-3 py-2.5">
+                  <td className="border-b border-border-hairline px-3 py-2">
                     <div className="flex items-center gap-2">
                       <span className="w-4 text-right text-xs font-semibold tabular-nums text-text-muted">
                         {index + 1}
@@ -146,11 +150,11 @@ export default async function BoardPage({
                       >
                         {team.shortName.slice(0, 2)}
                       </span>
-                      <span className="font-medium text-text-primary">{team.name}</span>
+                      <span className="whitespace-nowrap font-medium text-text-primary">{team.name}</span>
                     </div>
                   </td>
-                  <td className="border-b border-border-hairline px-3 py-2.5">
-                    <div className="flex items-center justify-center gap-2">
+                  <td className="border-b border-border-hairline px-2 py-2">
+                    <div className="flex items-center justify-center gap-1.5">
                       <span className="tabular-nums font-semibold text-text-primary">
                         {current?.avgRank != null ? current.avgRank.toFixed(1) : "–"}
                       </span>
@@ -160,7 +164,7 @@ export default async function BoardPage({
                   {analysts.map((a) => (
                     <td
                       key={a.id}
-                      className="border-b border-l border-border-hairline px-3 py-2.5 text-center tabular-nums text-text-secondary"
+                      className="border-b border-l border-border-hairline px-2 py-2 text-center tabular-nums text-text-secondary"
                     >
                       {current?.byAnalyst[a.id] ?? <span className="text-text-muted">–</span>}
                     </td>
