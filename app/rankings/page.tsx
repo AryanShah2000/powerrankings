@@ -54,6 +54,10 @@ export default async function RankingsPage({
       ? myRankings.map((r) => r.teamId)
       : teams.map((t) => t.id);
 
+  const initialComments = Object.fromEntries(
+    myRankings.filter((r) => r.comment).map((r) => [r.teamId, r.comment as string])
+  );
+
   // Include any team not yet in the analyst's saved order (newly added teams).
   const knownIds = new Set(orderedTeamIds);
   const fullOrder = [...orderedTeamIds, ...teams.filter((t) => !knownIds.has(t.id)).map((t) => t.id)];
@@ -106,6 +110,7 @@ export default async function RankingsPage({
         weekId={selectedWeek.id}
         teams={teams}
         initialOrder={fullOrder}
+        initialComments={initialComments}
       />
     </div>
   );

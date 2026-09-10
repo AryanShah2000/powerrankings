@@ -16,18 +16,23 @@ async function requireAnalystId() {
   return id;
 }
 
-export async function saveWeekRankings(weekId: string, teamOrder: string[]) {
+export async function saveWeekRankings(
+  weekId: string,
+  teamOrder: string[],
+  comments: Record<string, string> = {}
+) {
   const analystId = await requireAnalystId();
   if (teamOrder.length === 0) throw new Error("No teams to rank.");
 
   await prisma.$transaction(
-    teamOrder.map((teamId, index) =>
-      prisma.ranking.upsert({
+    teamOrder.map((teamId, index) => {
+      const comment = comments[teamId]?.trim() || null;
+      return prisma.ranking.upsert({
         where: { analystId_teamId_weekId: { analystId, teamId, weekId } },
-        update: { rank: index + 1 },
-        create: { analystId, teamId, weekId, rank: index + 1 },
-      })
-    )
+        update: { rank: index + 1, comment },
+        create: { analystId, teamId, weekId, rank: index + 1, comment },
+      });
+    })
   );
 
   revalidatePath("/");
