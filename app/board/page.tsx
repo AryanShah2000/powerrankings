@@ -46,6 +46,20 @@ export default async function BoardPage({
 
   const teamCount = teams.length;
 
+  const weekComments = isSelectedWeekUnlocked
+    ? await prisma.ranking.findMany({
+        where: { weekId: selectedWeek.id, teamId: { in: teams.map((t) => t.id) }, NOT: { comment: null } },
+        select: { teamId: true, analystId: true, comment: true },
+      })
+    : [];
+  const commentsByTeam = new Map<string, { analystName: string; comment: string }[]>();
+  for (const c of weekComments) {
+    if (!c.comment || !c.comment.trim()) continue;
+    const list = commentsByTeam.get(c.teamId) ?? [];
+    list.push({ analystName: analystNameById.get(c.analystId) ?? "?", comment: c.comment });
+    commentsByTeam.set(c.teamId, list);
+  }
+
   const snapshotRows = teams
     .map((team) => {
       const current = byTeamWeek.get(`${team.id}::${selectedWeek.id}`);
@@ -109,7 +123,8 @@ export default async function BoardPage({
           <WeekLocked weekId={selectedWeek.id} weekLabel={selectedWeek.label} />
         </div>
       ) : (
-        <div className="mb-10 inline-block overflow-x-auto rounded-2xl border border-border-hairline bg-bg-surface">
+        <div className="mb-10 flex flex-wrap items-start gap-4">
+        <div className="inline-block overflow-x-auto rounded-2xl border border-border-hairline bg-bg-surface">
           <table className="border-collapse text-sm">
             <caption className="border-b border-border-hairline px-4 py-3 text-left text-base font-semibold text-text-primary">
               {selectedWeek.label} Power Rankings
@@ -173,6 +188,38 @@ export default async function BoardPage({
               ))}
             </tbody>
           </table>
+        </div>
+
+        {commentsByTeam.size > 0 && (
+          <div className="w-full max-w-sm shrink-0 rounded-2xl border border-border-hairline bg-bg-surface p-4 sm:w-80">
+            <h3 className="mb-3 text-sm font-semibold text-text-primary">Analyst comments</h3>
+            <ul className="space-y-3">
+              {snapshotRows
+                .filter(({ team }) => commentsByTeam.has(team.id))
+                .map(({ team }) => (
+                  <li key={team.id}>
+                    <div className="mb-1 flex items-center gap-2">
+                      <span
+                        className="h-5 w-5 shrink-0 rounded-full text-center text-[10px] font-semibold leading-5 text-white"
+                        style={{ backgroundColor: team.color }}
+                      >
+                        {team.shortName.slice(0, 2)}
+                      </span>
+                      <span className="text-sm font-medium text-text-primary">{team.name}</span>
+                    </div>
+                    <ul className="space-y-1 pl-7">
+                      {commentsByTeam.get(team.id)!.map((c, i) => (
+                        <li key={i} className="text-xs text-text-secondary">
+                          <span className="font-semibold text-text-muted">{c.analystName}:</span>{" "}
+                          {c.comment}
+                        </li>
+                      ))}
+                    </ul>
+                  </li>
+                ))}
+            </ul>
+          </div>
+        )}
         </div>
       )}
 
