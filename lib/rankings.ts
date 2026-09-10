@@ -75,6 +75,43 @@ export async function getUnlockedWeekIds(analystId: string): Promise<Set<string>
   return new Set(rows.map((r) => r.weekId));
 }
 
+/**
+ * Aggregated (mean) rank per team for a single week, from every analyst's
+ * submission that week.
+ */
+export async function getWeekAverageRanks(weekId: string): Promise<Map<string, number>> {
+  const rankings = await prisma.ranking.findMany({
+    where: { weekId },
+    select: { teamId: true, rank: true },
+  });
+
+  const totals = new Map<string, { total: number; count: number }>();
+  for (const r of rankings) {
+    const entry = totals.get(r.teamId) ?? { total: 0, count: 0 };
+    entry.total += r.rank;
+    entry.count += 1;
+    totals.set(r.teamId, entry);
+  }
+
+  return new Map([...totals].map(([teamId, { total, count }]) => [teamId, total / count]));
+}
+
+/**
+ * Team order sorted by aggregated rank (teams with no data fall to the end,
+ * in their configured order) — used as the default order for a week an
+ * analyst hasn't ranked yet, seeded from the prior week's results.
+ */
+export function orderTeamsByAvgRank(teams: TeamRow[], avgRanks: Map<string, number>): string[] {
+  return [...teams]
+    .sort((a, b) => {
+      const rankA = avgRanks.get(a.id) ?? Number.POSITIVE_INFINITY;
+      const rankB = avgRanks.get(b.id) ?? Number.POSITIVE_INFINITY;
+      if (rankA !== rankB) return rankA - rankB;
+      return a.order - b.order;
+    })
+    .map((t) => t.id);
+}
+
 export function currentWeekFor(weeks: WeekRow[], averages: WeekAverage[]): WeekRow | null {
   if (weeks.length === 0) return null;
   const withData = new Set(
