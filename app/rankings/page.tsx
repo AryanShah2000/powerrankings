@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { getWeekAverageRanks, orderTeamsByAvgRank } from "@/lib/rankings";
 import { RankingBoard } from "./ranking-board";
 
 export default async function RankingsPage({
@@ -49,10 +50,17 @@ export default async function RankingsPage({
     }),
   ]);
 
+  const previousWeek = weeks
+    .filter((w) => w.order < selectedWeek.order)
+    .sort((a, b) => b.order - a.order)[0];
+  const priorWeekAverages = previousWeek
+    ? await getWeekAverageRanks(previousWeek.id)
+    : new Map<string, number>();
+
   const orderedTeamIds =
     myRankings.length > 0
       ? myRankings.map((r) => r.teamId)
-      : teams.map((t) => t.id);
+      : orderTeamsByAvgRank(teams, priorWeekAverages);
 
   const initialComments = Object.fromEntries(
     myRankings.filter((r) => r.comment).map((r) => [r.teamId, r.comment as string])
