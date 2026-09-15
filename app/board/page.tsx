@@ -78,6 +78,16 @@ export default async function BoardPage({
       return a.current.avgRank - b.current.avgRank;
     });
 
+  let previousAvgRank: number | null = null;
+  let currentRank = 0;
+  const rankedSnapshotRows = snapshotRows.map((row, index) => {
+    const avgRank = row.current?.avgRank ?? null;
+    const isTie = avgRank != null && previousAvgRank != null && Math.abs(avgRank - previousAvgRank) < 1e-9;
+    if (!isTie) currentRank = index + 1;
+    previousAvgRank = avgRank;
+    return { ...row, rank: currentRank };
+  });
+
   const seasonRows = teams
     .map((team) => {
       const latest = fallbackWeek ? byTeamWeek.get(`${team.id}::${fallbackWeek.id}`) : undefined;
@@ -152,12 +162,12 @@ export default async function BoardPage({
               </tr>
             </thead>
             <tbody>
-              {snapshotRows.map(({ team, current, delta, isNew }, index) => (
+              {rankedSnapshotRows.map(({ team, current, delta, isNew, rank }) => (
                 <tr key={team.id}>
                   <td className="border-b border-border-hairline px-3 py-2">
                     <div className="flex items-center gap-2">
                       <span className="w-4 text-right text-xs font-semibold tabular-nums text-text-muted">
-                        {index + 1}
+                        {rank}
                       </span>
                       <span
                         className="h-6 w-6 shrink-0 rounded-full text-center text-[10px] font-semibold leading-6 text-white"
@@ -171,9 +181,9 @@ export default async function BoardPage({
                   <td className="border-b border-border-hairline px-2 py-2">
                     <div className="flex items-center justify-center gap-1.5">
                       <span className="tabular-nums font-semibold text-text-primary">
-                        {current?.avgRank != null ? current.avgRank.toFixed(1) : "–"}
+                        {current?.avgRank != null ? Math.round(current.avgRank) : "–"}
                       </span>
-                      <MovementBadge delta={delta} isNew={isNew} />
+                      <MovementBadge delta={delta} isNew={isNew} decimals={0} />
                     </div>
                   </td>
                   {analysts.map((a) => (
@@ -194,7 +204,7 @@ export default async function BoardPage({
           <div className="w-full max-w-sm shrink-0 rounded-2xl border border-border-hairline bg-bg-surface p-4 sm:w-80">
             <h3 className="mb-3 text-sm font-semibold text-text-primary">Analyst comments</h3>
             <ul className="space-y-3">
-              {snapshotRows
+              {rankedSnapshotRows
                 .filter(({ team }) => commentsByTeam.has(team.id))
                 .map(({ team }) => (
                   <li key={team.id}>
@@ -284,7 +294,7 @@ export default async function BoardPage({
                       style={cellStyle(avgRank)}
                       className="border-b border-l border-border-hairline px-2 py-2 text-center tabular-nums text-text-primary"
                     >
-                      {avgRank != null ? avgRank.toFixed(1) : <span className="text-text-muted">–</span>}
+                      {avgRank != null ? Math.round(avgRank) : <span className="text-text-muted">–</span>}
                     </td>
                   );
                 })}

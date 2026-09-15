@@ -1,4 +1,12 @@
-export function MovementBadge({ delta, isNew }: { delta: number | null; isNew: boolean }) {
+export function MovementBadge({
+  delta,
+  isNew,
+  decimals = 1,
+}: {
+  delta: number | null;
+  isNew: boolean;
+  decimals?: number;
+}) {
   if (isNew) {
     return (
       <span className="inline-flex items-center rounded-full bg-accent/15 px-2 py-0.5 text-xs font-semibold text-accent-strong">
@@ -23,7 +31,7 @@ export function MovementBadge({ delta, isNew }: { delta: number | null; isNew: b
       }`}
     >
       <span>{isUp ? "▲" : "▼"}</span>
-      {Math.abs(delta).toFixed(1)}
+      {Math.abs(delta).toFixed(decimals)}
     </span>
   );
 }
