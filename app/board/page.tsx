@@ -166,7 +166,7 @@ export default async function BoardPage({
                 <tr key={team.id}>
                   <td className="border-b border-border-hairline px-3 py-2">
                     <div className="flex items-center gap-2">
-                      <span className="w-4 text-right text-xs font-semibold tabular-nums text-text-muted">
+                      <span className="w-4 text-right text-xs font-semibold tabular-nums text-white">
                         {rank}
                       </span>
                       <span
@@ -179,10 +179,7 @@ export default async function BoardPage({
                     </div>
                   </td>
                   <td className="border-b border-border-hairline px-2 py-2">
-                    <div className="flex items-center justify-center gap-1.5">
-                      <span className="tabular-nums font-semibold text-text-primary">
-                        {current?.avgRank != null ? Math.round(current.avgRank) : "–"}
-                      </span>
+                    <div className="flex items-center justify-center">
                       <MovementBadge delta={delta} isNew={isNew} decimals={0} />
                     </div>
                   </td>
