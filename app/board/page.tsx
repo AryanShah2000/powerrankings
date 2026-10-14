@@ -60,33 +60,54 @@ export default async function BoardPage({
     commentsByTeam.set(c.teamId, list);
   }
 
-  const snapshotRows = teams
+  // Tie-aware standings position (1, 1, 3, ...) for a given week, keyed by team id.
+  function computeRanks(weekId: string) {
+    const ranked = teams
+      .map((team) => ({ team, avgRank: byTeamWeek.get(`${team.id}::${weekId}`)?.avgRank ?? null }))
+      .sort((a, b) => {
+        if (a.avgRank == null && b.avgRank == null) return 0;
+        if (a.avgRank == null) return 1;
+        if (b.avgRank == null) return -1;
+        return a.avgRank - b.avgRank;
+      });
+
+    const rankByTeamId = new Map<string, number | null>();
+    let previousAvgRank: number | null = null;
+    let rank = 0;
+    ranked.forEach(({ team, avgRank }, index) => {
+      if (avgRank == null) {
+        rankByTeamId.set(team.id, null);
+        previousAvgRank = null;
+        return;
+      }
+      const isTie = previousAvgRank != null && Math.abs(avgRank - previousAvgRank) < 1e-9;
+      if (!isTie) rank = index + 1;
+      previousAvgRank = avgRank;
+      rankByTeamId.set(team.id, rank);
+    });
+    return rankByTeamId;
+  }
+
+  const currentRankByTeamId = computeRanks(selectedWeek.id);
+  const previousRankByTeamId = previousWeek ? computeRanks(previousWeek.id) : new Map<string, number | null>();
+
+  const rankedSnapshotRows = teams
     .map((team) => {
       const current = byTeamWeek.get(`${team.id}::${selectedWeek.id}`);
       const previous = previousWeek ? byTeamWeek.get(`${team.id}::${previousWeek.id}`) : undefined;
-      const delta =
-        current?.avgRank != null && previous?.avgRank != null
-          ? previous.avgRank - current.avgRank
-          : null;
+      const rank = currentRankByTeamId.get(team.id) ?? null;
+      const previousRank = previousRankByTeamId.get(team.id) ?? null;
+      // Movement is based on standings position (1st, 2nd, ...), not the raw avg-rank difference.
+      const delta = rank != null && previousRank != null ? previousRank - rank : null;
       const isNew = current?.avgRank != null && previous?.avgRank == null;
-      return { team, current, delta, isNew };
+      return { team, current, delta, isNew, rank };
     })
     .sort((a, b) => {
-      if (a.current?.avgRank == null && b.current?.avgRank == null) return 0;
-      if (a.current?.avgRank == null) return 1;
-      if (b.current?.avgRank == null) return -1;
-      return a.current.avgRank - b.current.avgRank;
+      if (a.rank == null && b.rank == null) return 0;
+      if (a.rank == null) return 1;
+      if (b.rank == null) return -1;
+      return a.rank - b.rank;
     });
-
-  let previousAvgRank: number | null = null;
-  let currentRank = 0;
-  const rankedSnapshotRows = snapshotRows.map((row, index) => {
-    const avgRank = row.current?.avgRank ?? null;
-    const isTie = avgRank != null && previousAvgRank != null && Math.abs(avgRank - previousAvgRank) < 1e-9;
-    if (!isTie) currentRank = index + 1;
-    previousAvgRank = avgRank;
-    return { ...row, rank: currentRank };
-  });
 
   const seasonRows = teams
     .map((team) => {
