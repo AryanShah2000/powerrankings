@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { getWeekAverageRanks, orderTeamsByAvgRank } from "@/lib/rankings";
+import { getWeekAverageRanks, orderTeamsByAvgRank, getLastRankedWeekBefore } from "@/lib/rankings";
 import { RankingBoard } from "./ranking-board";
 
 export default async function RankingsPage({
@@ -66,6 +66,9 @@ export default async function RankingsPage({
     myRankings.filter((r) => r.comment).map((r) => [r.teamId, r.comment as string])
   );
 
+  const copyFromWeek =
+    myRankings.length === 0 ? await getLastRankedWeekBefore(analystId, selectedWeek.order) : null;
+
   // Include any team not yet in the analyst's saved order (newly added teams).
   const knownIds = new Set(orderedTeamIds);
   const fullOrder = [...orderedTeamIds, ...teams.filter((t) => !knownIds.has(t.id)).map((t) => t.id)];
@@ -119,6 +122,7 @@ export default async function RankingsPage({
         teams={teams}
         initialOrder={fullOrder}
         initialComments={initialComments}
+        copyFromWeekLabel={copyFromWeek?.label ?? null}
       />
     </div>
   );

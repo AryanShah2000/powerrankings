@@ -41,6 +41,48 @@ export async function saveWeekRankings(
   revalidatePath("/trends");
 }
 
+/**
+ * Carries this analyst's most recent earlier ranked week forward into
+ * `weekId` and saves it immediately — the "we missed a week" escape hatch.
+ * Walks back past any skipped weeks to find the last one they actually
+ * ranked, rather than only the immediately preceding week.
+ */
+export async function copyFromPreviousWeek(weekId: string) {
+  const analystId = await requireAnalystId();
+  const targetWeek = await prisma.week.findUniqueOrThrow({ where: { id: weekId } });
+
+  const sourceRanking = await prisma.ranking.findFirst({
+    where: { analystId, week: { order: { lt: targetWeek.order } } },
+    orderBy: { week: { order: "desc" } },
+    select: { weekId: true, week: { select: { label: true } } },
+  });
+
+  if (!sourceRanking) {
+    throw new Error("No earlier week to copy from yet.");
+  }
+
+  const [sourceRows, activeTeams] = await Promise.all([
+    prisma.ranking.findMany({
+      where: { analystId, weekId: sourceRanking.weekId },
+      orderBy: { rank: "asc" },
+    }),
+    prisma.team.findMany({ where: { archived: false }, orderBy: { order: "asc" } }),
+  ]);
+
+  const teamOrder = sourceRows.map((r) => r.teamId);
+  const comments = Object.fromEntries(
+    sourceRows.filter((r) => r.comment).map((r) => [r.teamId, r.comment as string])
+  );
+
+  // Include any team not covered by the copied week (newly added since then).
+  const known = new Set(teamOrder);
+  const fullOrder = [...teamOrder, ...activeTeams.filter((t) => !known.has(t.id)).map((t) => t.id)];
+
+  await saveWeekRankings(weekId, fullOrder, comments);
+
+  return { teamOrder: fullOrder, comments, sourceWeekLabel: sourceRanking.week.label };
+}
+
 export async function createTeam(name: string, shortName: string) {
   await requireAnalystId();
   const trimmedName = name.trim();

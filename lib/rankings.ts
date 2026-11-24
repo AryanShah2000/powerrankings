@@ -112,6 +112,24 @@ export function orderTeamsByAvgRank(teams: TeamRow[], avgRanks: Map<string, numb
     .map((t) => t.id);
 }
 
+/**
+ * The most recent earlier week (by order) this analyst has any rankings
+ * for — not necessarily the immediately preceding week, since a week may
+ * have been skipped entirely. Used to offer "carry forward" when an
+ * analyst opens an unranked week with a gap behind it.
+ */
+export async function getLastRankedWeekBefore(
+  analystId: string,
+  beforeOrder: number
+): Promise<WeekRow | null> {
+  const row = await prisma.ranking.findFirst({
+    where: { analystId, week: { order: { lt: beforeOrder } } },
+    orderBy: { week: { order: "desc" } },
+    select: { week: true },
+  });
+  return row?.week ?? null;
+}
+
 export function currentWeekFor(weeks: WeekRow[], averages: WeekAverage[]): WeekRow | null {
   if (weeks.length === 0) return null;
   const withData = new Set(

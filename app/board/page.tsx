@@ -78,15 +78,16 @@ export default async function BoardPage({
       return a.current.avgRank - b.current.avgRank;
     });
 
+  const rankedSnapshotRows: (typeof snapshotRows[number] & { rank: number })[] = [];
   let previousAvgRank: number | null = null;
   let currentRank = 0;
-  const rankedSnapshotRows = snapshotRows.map((row, index) => {
+  for (const [index, row] of snapshotRows.entries()) {
     const avgRank = row.current?.avgRank ?? null;
     const isTie = avgRank != null && previousAvgRank != null && Math.abs(avgRank - previousAvgRank) < 1e-9;
     if (!isTie) currentRank = index + 1;
     previousAvgRank = avgRank;
-    return { ...row, rank: currentRank };
-  });
+    rankedSnapshotRows.push({ ...row, rank: currentRank });
+  }
 
   const seasonRows = teams
     .map((team) => {

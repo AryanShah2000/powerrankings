@@ -18,7 +18,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { saveWeekRankings } from "@/lib/actions";
+import { saveWeekRankings, copyFromPreviousWeek } from "@/lib/actions";
 
 type Team = { id: string; name: string; shortName: string; color: string };
 
@@ -160,11 +160,13 @@ export function RankingBoard({
   teams,
   initialOrder,
   initialComments = {},
+  copyFromWeekLabel = null,
 }: {
   weekId: string;
   teams: Team[];
   initialOrder: string[];
   initialComments?: Record<string, string>;
+  copyFromWeekLabel?: string | null;
 }) {
   const teamById = useMemo(() => new Map(teams.map((t) => [t.id, t])), [teams]);
   const [order, setOrder] = useState(initialOrder);
@@ -172,6 +174,7 @@ export function RankingBoard({
   const [openCommentId, setOpenCommentId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
+  const [copyBannerDismissed, setCopyBannerDismissed] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -215,8 +218,34 @@ export function RankingBoard({
     });
   }
 
+  function handleCopyPrevious() {
+    startTransition(async () => {
+      const result = await copyFromPreviousWeek(weekId);
+      setOrder(result.teamOrder);
+      setComments(result.comments);
+      setSaved(true);
+      setCopyBannerDismissed(true);
+    });
+  }
+
   return (
     <div>
+      {copyFromWeekLabel && !copyBannerDismissed && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-border-hairline bg-bg-surface-2 px-4 py-3">
+          <p className="text-sm text-text-secondary">
+            Haven&rsquo;t ranked this week? Carry forward your {copyFromWeekLabel} rankings instead of starting over.
+          </p>
+          <button
+            type="button"
+            onClick={handleCopyPrevious}
+            disabled={isPending}
+            className="shrink-0 rounded-lg border border-border-hairline bg-bg-surface px-3 py-1.5 text-xs font-semibold text-text-primary transition-colors hover:bg-bg-surface-hover disabled:opacity-50"
+          >
+            Copy {copyFromWeekLabel}
+          </button>
+        </div>
+      )}
+
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={order} strategy={verticalListSortingStrategy}>
           <ul className="space-y-2">
